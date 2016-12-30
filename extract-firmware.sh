@@ -1,16 +1,16 @@
 #!/bin/bash
+BINDIR=`dirname $0`
+. "$BINDIR/common.inc"
 
 IMG="${1}"
 DIR="${2}"
 
-if [ "${DIR}" = "" ]
- then
+if [ "${DIR}" = "" ]; then
 	DIR="fmk"
 fi
 
 # Need to extract file systems as ROOT
-if [ "$(id -ru)" != "0" ]
- then
+if [ "$(id -ru)" != "0" ]; then
 	SUDO="sudo"
 else
 	SUDO=""
@@ -25,41 +25,25 @@ cd $(dirname $(readlink -f $0))
 # Source in/Import shared settings. ${DIR} MUST be defined prior to this!
 . ./shared-ng.inc
 
-printf "Firmware Mod Kit (build-ng) ${VERSION}, (c)2011-2013 Craig Heffner, Jeremy Collake\n\n"
+printf "Firmware Mod Kit (extract) ${VERSION}, (c)2011-2013 Craig Heffner, Jeremy Collake\n\n"
 
 # Check usage
-if [ "${IMG}" = "" ] || [ "${IMG}" = "-h" ]
- then
+if [ "${IMG}" = "" ] || [ "${IMG}" = "-h" ]; then
 	printf "Usage: ${0} <firmware image>\n\n"
 	exit 1
 fi
 
-if [ ! -f "${IMG}" ];
-then
+if [ ! -f "${IMG}" ]; then
 	echo "File does not exist!"
 	exit 1
 fi
 
-if [ -e "${DIR}" ]
- then
+if [ -e "${DIR}" ]; then
 	echo "Directory ${DIR} already exists! Quitting..."
 	exit 1
 fi
 
-# Check if FMK has been built, and if not, build it
-if [ ! -e "./src/crcalc/crcalc" ]
- then
-	echo "Firmware-Mod-Kit has not been built yet. Building..."
-	cd src && ./configure && make
-
-	if [ ${?} -eq 0 ]
-	 then
-		cd -
-	else
-		echo "Build failed! Quitting..."
-		exit 1
-	fi
-fi
+Build_Tools
 
 # Get the size, in bytes, of the target firmware image
 FW_SIZE=$(ls -l "${IMG}" | cut -d' ' -f5)
@@ -91,8 +75,7 @@ for LINE in IFS='
 	DESCRIPTION=$(echo ${LINE} | awk '{print tolower($3)}')
 
 	# Offset 0 is firmware header
-	if [ "${OFFSET}" = "0" ]
-	 then
+	if [ "${OFFSET}" = "0" ]; then
 		HEADER_OFFSET=${OFFSET}
 		HEADER_TYPE=${DESCRIPTION}
 		HEADER_SIZE=$(echo ${LINE} | sed -e 's/.*header size: //' | cut -d' ' -f1)
@@ -105,25 +88,21 @@ for LINE in IFS='
 		FS_TYPE=${DESCRIPTION}
 
 		# Need to know endianess for re-assembly
-		if [ "$(echo ${LINE} | grep -i 'big endian')" != "" ]
-		 then
+		if [ "$(echo ${LINE} | grep -i 'big endian')" != "" ]; then
 			ENDIANESS="-be"
 		else
 			ENDIANESS="-le"
 		fi
 
-		# Check for LZMA compression in the file system. If not present, assume gzip.
-		# This is only used for squashfs 4.0 images.
-		if [ "$(echo ${LINE} | grep -i 'lzma')" != "" ]
-		 then
-			FS_COMPRESSION="lzma"
-		else
+		# Check for compression type of the file system. Default to LZMA
+		if [ "$(echo ${LINE} | grep -i 'gzip')" != "" ];  then
 			FS_COMPRESSION="gzip"
+		else
+			FS_COMPRESSION="lzma"
 		fi
 
-		# Check for a block size (used only by mksquashfs)
-		if [ "$(echo ${LINE} | grep -i 'blocksize')" != "" ]
-		then
+		# Check for a block size (used only by squashfs)
+		if [ "$(echo ${LINE} | grep -i 'blocksize')" != "" ]; then
 			set -f
 			IFS=,
 			for fsparam in ${LINE}
@@ -146,8 +125,7 @@ HEADER_IMAGE_SIZE=$((${FS_OFFSET}-${HEADER_IMAGE_OFFSET}))
 echo "Extracting ${HEADER_IMAGE_SIZE} bytes of ${HEADER_TYPE} header image at offset ${HEADER_IMAGE_OFFSET}"
 dd if="${IMG}" bs=${HEADER_IMAGE_SIZE} skip=${HEADER_IMAGE_OFFSET} count=1 of="${HEADER_IMAGE}" 2>/dev/null
 
-if [ "${FS_OFFSET}" != "" ]
- then
+if [ "${FS_OFFSET}" != "" ]; then
 	echo "Extracting ${FS_TYPE} file system at offset ${FS_OFFSET}"
 	dd if="${IMG}" bs=${FS_OFFSET} skip=1 of="${FSIMG}" 2>/dev/null
 else
@@ -165,8 +143,7 @@ FOOTER_OFFSET=0
 # that start with '*' with the word 'FILLER'.
 for LINE in $(hexdump -C ${IMG} | tail -11 | head -10 | sed -n '1!G;h;$p' | sed -e 's/^*/FILLER/')
  do
-	if [ "${LINE}" = "FILLER" ]
-	 then
+	if [ "${LINE}" = "FILLER" ]; then
 		break
 	else
 		FOOTER_SIZE=$((${FOOTER_SIZE}+16))
@@ -174,8 +151,7 @@ for LINE in $(hexdump -C ${IMG} | tail -11 | head -10 | sed -n '1!G;h;$p' | sed 
 done
 
 # If a footer was found, dump it out
-if [ "${FOOTER_SIZE}" != "0" ]
- then
+if [ "${FOOTER_SIZE}" != "0" ]; then
 	FOOTER_OFFSET=$((${FW_SIZE}-${FOOTER_SIZE}))
 	echo "Extracting ${FOOTER_SIZE} byte footer from offset ${FOOTER_OFFSET}"
 	dd if="${IMG}" bs=1 skip=${FOOTER_OFFSET} count=${FOOTER_SIZE} of="${FOOTER_IMAGE}" 2>/dev/null
@@ -215,8 +191,7 @@ case ${FS_TYPE} in
 esac
 
 # Check if file system extraction was successful
-if [ ${?} -eq 0 ]
- then
+if [ ${?} -eq 0 ]; then
 	echo "Firmware extraction successful!"
 	echo "Firmware parts can be found in '${DIR}/*'"
 else

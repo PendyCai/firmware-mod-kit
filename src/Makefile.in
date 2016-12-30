@@ -15,6 +15,7 @@ all: asustrx addpattern untrx motorola-bin splitter3 bffutils
 	make -C ./others/
 	make -C ./crcalc/
 	make -C ./webcomp-tools/
+	make -C ./tpl-tool/src/
 	make -C ./firmware-tools/
 
 addpattern: addpattern.o
@@ -54,7 +55,6 @@ clean:
 	make -C ./others clean
 	make -C ./crcalc clean
 	make -C ./webcomp-tools clean
-	make -C ./binwalk*/src/ cleanall
 	make -C ./firmware-tools/ clean
 	make -C ./bff/ clean
 

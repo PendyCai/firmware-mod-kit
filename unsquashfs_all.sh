@@ -3,7 +3,8 @@
 #
 # Craig Heffner
 # 27 August 2011
-
+BINDIR=`dirname $0`
+. "$BINDIR/common.inc"
 IMG="$1"
 DIR="$2"
 
@@ -82,7 +83,7 @@ DIR=$(readlink -f $DIR)
 cd $(dirname $(readlink -f $0))
 
 DEST="-dest $DIR"
-MAJOR=$(./src/binwalk -m ./src/binwalk-*/src/magic.binwalk -l 1 "$IMG" | head -4 | tail -1 | sed -e 's/.*version //' | cut -d'.' -f1)
+MAJOR=$(./src/binwalk-1.0/src/bin/binwalk-script -m ./src/binwalk-*/src/magic.binwalk -l 1 "$IMG" | head -4 | tail -1 | sed -e 's/.*version //' | cut -d'.' -f1)
 
 echo -e "Attempting to extract SquashFS $MAJOR.X file system...\n"
 
@@ -97,39 +98,7 @@ do
 	unsquashfs="$ROOT/$SUBDIR/unsquashfs"
 	mksquashfs="$ROOT/$SUBDIR/mksquashfs"
 
-	if [ -e $unsquashfs ]
-	then
-		echo -ne "\nTrying $unsquashfs... "
-
-		$unsquashfs $DEST $IMG 2>/dev/null &
-		#sleep $TIMEOUT && kill $! 1>&2 >/dev/null
-		wait_for_complete $unsquashfs
-
-		if [ -d "$DIR" ]
-		then
-			if [ "$(ls $DIR)" != "" ]
-			then
-				# Most systems will have busybox - make sure it's a non-zero file size
-				if [ -e "$DIR/bin/sh" ]
-				then
-					if [ "$(wc -c $DIR/bin/sh | cut -d' ' -f1)" != "0" ]
-					then
-						MKFS="$mksquashfs"
-					fi
-				else
-					MKFS="$mksquashfs"
-				fi
-			fi
-
-			if [ "$MKFS" == "" ]
-			then
-				rm -rf "$DIR"
-			fi
-		fi
-	fi
-	
-	if [ "$MKFS" == "" ] && [ -e $unsquashfs-lzma ]
-	then
+	if [ -e $unsquashfs-lzma ]; then
 		echo -ne "\nTrying $unsquashfs-lzma... "
 
 		$unsquashfs-lzma $DEST $IMG 2>/dev/null &
@@ -158,6 +127,35 @@ do
 			fi
                 fi
 	fi
+	if [ "$MKFS" == "" ] && [ -e $unsquashfs ]; then
+		echo -ne "\nTrying $unsquashfs... "
+
+		$unsquashfs $DEST $IMG 2>/dev/null &
+		#sleep $TIMEOUT && kill $! 1>&2 >/dev/null
+		wait_for_complete $unsquashfs
+
+		if [ -d "$DIR" ]
+		then
+			if [ "$(ls $DIR)" != "" ]
+			then
+				# Most systems will have busybox - make sure it's a non-zero file size
+				if [ -e "$DIR/bin/sh" ]
+				then
+					if [ "$(wc -c $DIR/bin/sh | cut -d' ' -f1)" != "0" ]
+					then
+						MKFS="$mksquashfs"
+					fi
+				else
+					MKFS="$mksquashfs"
+				fi
+			fi
+
+			if [ "$MKFS" == "" ]
+			then
+				rm -rf "$DIR"
+			fi
+		fi
+	fi	
 
 	if [ "$MKFS" != "" ]
 	then

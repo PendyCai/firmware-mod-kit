@@ -1,16 +1,16 @@
 #!/bin/bash
+BINDIR=`dirname $0`
+. "$BINDIR/common.inc"
 
 DIR="$1"
 NEXT_PARAM=""
 
-if [ "$1" == "-h" ]
-then
+if [ "$1" == "-h" ]; then
 	echo "Usage: $0 [FMK directory] [-nopad | -min]"
 	exit 1
 fi
 
-if [ "$DIR" == "" ] || [ "$DIR" == "-nopad" ] || [ "$DIR" == "-min" ]
-then
+if [ "$DIR" == "" ] || [ "$DIR" == "-nopad" ] || [ "$DIR" == "-min" ]; then
 	DIR="fmk"
 	NEXT_PARAM="$1"
 else
@@ -18,8 +18,7 @@ else
 fi
 
 # Need to extract file systems as ROOT
-if [ "$UID" != "0" ]
-then
+if [ "$UID" != "0" ]; then
         SUDO="sudo"
 else
         SUDO=""
@@ -35,30 +34,17 @@ eval $(cat shared-ng.inc)
 eval $(cat $CONFLOG)
 FSOUT="$DIR/new-filesystem.$FS_TYPE"
 
-printf "Firmware Mod Kit (build-ng) ${VERSION}, (c)2011-2013 Craig Heffner, Jeremy Collake\n\n"
+printf "Firmware Mod Kit (build) ${VERSION}, (c)2011-2013 Craig Heffner, Jeremy Collake\n\n"
 
-if [ ! -d "$DIR" ]
-then
+if [ ! -d "$DIR" ]; then
 	echo -e "Usage: $0 [build directory] [-nopad]\n"
 	exit 1
 fi
 
-# Check if FMK has been built, and if not, build it
-if [ ! -e "./src/crcalc/crcalc" ]
-then
-	echo "Firmware-Mod-Kit has not been built yet. Building..."
-	cd src && ./configure && make
+# Always try to rebuild, let make decide if necessary
+Build_Tools
 
-	if [ $? -eq 0 ]
-	then
-		cd -
-	else
-		echo "Build failed! Quitting..."
-		exit 1
-	fi
-fi
-
-echo "Building new $FS_TYPE file system..."
+echo "Building new $FS_TYPE file system... (this may take several minutes!)"
 
 # Clean up any previously created files
 rm -rf "$FWOUT" "$FSOUT"
@@ -67,38 +53,37 @@ rm -rf "$FWOUT" "$FSOUT"
 case $FS_TYPE in
 	"squashfs")
 		# Check for squashfs 4.0 realtek, which requires the -comp option to build lzma images.
-		if [ "$(echo $MKFS | grep 'squashfs-4.0-realtek')" != "" ] && [ "$FS_COMPRESSION" == "lzma" ]
-		then
-			COMP="-comp lzma"
-		else
-			COMP=""
+		if [ "$FS_COMPRESSION" == "lzma" ]; then
+			if [ "$(echo $MKFS | grep 'squashfs-4.0-realtek')" != "" ] || [ "$(echo $MKFS | grep 'squashfs-4.2')" != "" ]; then
+				COMP="-comp lzma"
+			else
+				COMP=""
+			fi
 		fi
 
 		# Mksquashfs 4.0 tools don't support the -le option; little endian is built by default
-		if [ "$(echo $MKFS | grep 'squashfs-4.')" != "" ] && [ "$ENDIANESS" == "-le" ]
-		then
+		if [ "$(echo $MKFS | grep 'squashfs-4.')" != "" ] && [ "$ENDIANESS" == "-le" ];	then
 			ENDIANESS=""
 		fi
 		
 		# Increasing the block size minimizes the resulting image size (larger dictionary). Max block size of 1MB.
-		if [ "$NEXT_PARAM" == "-min" ]
-		then
+		if [ "$NEXT_PARAM" == "-min" ];	then
 			echo "Blocksize override (-min). Original used $((FS_BLOCKSIZE/1024))KB blocks. New firmware uses 1MB blocks."
 			FS_BLOCKSIZE="$((1024*1024))"
 		fi
 
 		# if blocksize var exists, then add '-b' parameter
-                if [ "$FS_BLOCKSIZE" != "" ]
-		then
+                if [ "$FS_BLOCKSIZE" != "" ]; then
 			BS="-b $FS_BLOCKSIZE"
+			HR_BLOCKSIZE="$(($FS_BLOCKSIZE/1024))"
+			echo "Squahfs block size is $HR_BLOCKSIZE Kb"
 		fi
 
 		$SUDO $MKFS "$ROOTFS" "$FSOUT" $ENDIANESS $BS $COMP -all-root
 		;;
 	"cramfs")
 		$SUDO $MKFS "$ROOTFS" "$FSOUT"
-		if [ "$ENDIANESS" == "-be" ]
-		then
+		if [ "$ENDIANESS" == "-be" ]; then
 			mv "$FSOUT" "$FSOUT.le"
 			./src/cramfsswap/cramfsswap "$FSOUT.le" "$FSOUT"
 			rm -f "$FSOUT.le"
@@ -109,8 +94,7 @@ case $FS_TYPE in
 		;;
 esac
 
-if [ ! -e $FSOUT ]
-then
+if [ ! -e $FSOUT ]; then
 	echo "Failed to create new file system! Quitting..."
 	exit 1
 fi
@@ -123,18 +107,17 @@ $SUDO cat $FSOUT >> $FWOUT
 CUR_SIZE=$(ls -l $FWOUT | awk '{print $5}')
 ((FILLER_SIZE=$FW_SIZE-$CUR_SIZE-$FOOTER_SIZE))
 
-if [ "$FILLER_SIZE" -lt 0 ]
-then
+if [ "$FILLER_SIZE" -lt 0 ]; then
 	echo "ERROR: New firmware image will be larger than original image!"
 	echo "       Building firmware images larger than the original can brick your device!"
-	echo "       Try re-running with the -min option, or remove any unnecessary files from the file system."
-	echo "       Refusing to create new firmware image."
+	echo "       Try re-running with the -min option, or remove any unnecessary files."
+	echo "       REFUSING to create new firmware image."
 	echo ""
 	echo "       Original file size: $FW_SIZE"
-	echo "       Current file size:  $CUR_SIZE"
+	echo "       Current file size:  $CUR_SIZE (plus footer of $FOOTER_SIZE bytes)"
 	echo ""
 	echo "       Quitting..."
-	rm -f "$FWOUT" "$FSOUT"
+#	rm -f "$FWOUT" "$FSOUT"
 	exit 1
 else
 	if [ "$NEXT_PARAM" != "-nopad" ]; then
@@ -146,37 +129,61 @@ else
 fi
 
 # Append the footer to the new firmware image, if there is any footer
-if [ "$FOOTER_SIZE" -gt "0" ]
-then
+if [ "$FOOTER_SIZE" -gt "0" ]; then
 	cat $FOOTER_IMAGE >> "$FWOUT"
 fi
 
+CHECKSUM_ERROR=0
+
 # Calculate new checksum values for the firmware header
 # trx, dlob, uimage
+# Buffalo and some other post-processors obfuscate these images
+# so we must akways try prior to vendor processing below
 ./src/crcalc/crcalc "$FWOUT" "$BINLOG"
+if [ $? -ne 0 ]; then		
+	CHECKSUM_ERROR=1
+fi
 
-if [ $? -eq 0 ]
-then
-	echo -n "Finished! "
+# Vendor specific post-processing
+# For some images, will apply checksum (TP-Link)
+# Others, will encrypt image (Buffalo)
+case $HEADER_TYPE in
+	"tp-link")
+		src/tpl-tool/src/tpl-tool -x "$FWOUT"
+		if [ $? -ne 0 ]; then
+			CHECKSUM_ERROR=1
+		else		
+			src/tpl-tool/src/tpl-tool -b "$FWOUT"
+			mv "$FWOUT-new" "$FWOUT"
+			src/tpl-tool/src/tpl-tool -s "$FWOUT"
+			if [ $? -ne 0 ]; then		
+				CHECKSUM_ERROR=1
+			else
+				CHECKSUM_ERROR=0
+			fi
+		fi
+		rm -f "$FWOUT-header" "$FWOUT-kernel" "$FWOUT-rootfs"
+		;;
+	"buffalo")
+		src/firmware-tools/buffalo-enc -i "$FWOUT" -o "$FWOUT.enc"
+		if [ $? -ne 0 ]; then		
+			CHECKSUM_ERROR=1
+		else
+			printf "\nBuffalo encrypted image was saved as $FWOUT.enc (for vendor firmwares)"
+		fi
+		;;
+	*)
+	;;
+esac
+
+if [ $CHECKSUM_ERROR -eq 0 ]; then
+	printf "\nFinished! "
 else
-	echo -n "Firmware header not supported; firmware checksums may be incorrect. "
+	printf "\nFirmware header not supported; firmware checksums may be incorrect. "
 fi
 
-# if a Buffalo image, then run encrypter - base on image name
-if [ "$(echo $FWOUT | grep -i 'buffalo')" != "" ]
-then	
-	# product name, version, key, encryption type can be specified here
-	$KEY="" # specify full param, e.g. -k mykey
-	$MAGIC=""
-	$PRODUCT=""
-	$LONGSTATE=""
-	./src/firmware-tools/buffalo-enc -i $FWOUT -o $FWOUT.buffalo.enc $KEY $MAGIC $PRODUCT $LONGSTATE
-	#if [ $? -eq 0 ]
-	#then
-	#	echo "Encrypted Buffalo image created."
-	#else
-	#	echo "ERROR creating an encrypted Buffalo image"
-	#fi
+if [ -e "$FSOUT" ]; then
+	rm -f "$FSOUT"
 fi
 
-echo "New firmware image has been saved to: $FWOUT"
+printf "\nNew firmware image has been saved to: $FWOUT\n"
