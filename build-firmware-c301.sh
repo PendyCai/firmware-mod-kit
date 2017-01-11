@@ -120,7 +120,8 @@ $SUDO cat  $FSOUT >> $F
 cd $DIR
 ../bin/seama -i $F -v -m "dev=/dev/mtdblock/1" -m "type=firmware"
 
-printf "\nNew firmware image has been saved to: $F\n"
+printf "\nNew firmware image has been saved to: $F.seama\n"
+rm -rf $F $FSOUT
 
 exit 0
 
