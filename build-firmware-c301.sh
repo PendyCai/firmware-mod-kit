@@ -44,6 +44,9 @@ fi
 # Always try to rebuild, let make decide if necessary
 Build_Tools
 
+SEAMA=$(pwd)/bin/seama
+echo $SEAMA
+
 echo "Building new $FS_TYPE file system... (this may take several minutes!)"
 
 # Clean up any previously created files
@@ -118,7 +121,7 @@ echo -n -e "\x$b0\x$b1\x$b2\x$b3\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0" >> $F
 $SUDO cat  $FSOUT >> $F
 
 cd $DIR
-../bin/seama -i $F -v -m "dev=/dev/mtdblock/1" -m "type=firmware"
+$SEAMA -i $F -v -m "dev=/dev/mtdblock/1" -m "type=firmware"
 
 printf "\nNew firmware image has been saved to: $F.seama\n"
 rm -rf $F $FSOUT

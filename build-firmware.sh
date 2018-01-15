@@ -44,7 +44,7 @@ fi
 # Always try to rebuild, let make decide if necessary
 Build_Tools
 
-echo "Building new $FS_TYPE file system... (this may take several minutes!)"
+echo "Building new $FS_TYPE ($FS_COMPRESSION) file system... (this may take several minutes!)"
 
 # Clean up any previously created files
 rm -rf "$FWOUT" "$FSOUT"
@@ -79,6 +79,7 @@ case $FS_TYPE in
 			echo "Squahfs block size is $HR_BLOCKSIZE Kb"
 		fi
 
+		echo  $MKFS "$ROOTFS" "$FSOUT" $ENDIANESS $BS $COMP -all-root
 		$SUDO $MKFS "$ROOTFS" "$FSOUT" $ENDIANESS $BS $COMP -all-root
 		;;
 	"cramfs")
@@ -118,7 +119,7 @@ if [ "$FILLER_SIZE" -lt 0 ]; then
 	echo ""
 	echo "       Quitting..."
 #	rm -f "$FWOUT" "$FSOUT"
-	exit 1
+#	exit 1
 else
 	if [ "$NEXT_PARAM" != "-nopad" ]; then
 		echo "Remaining free bytes in firmware image: $FILLER_SIZE"

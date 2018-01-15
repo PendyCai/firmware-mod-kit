@@ -97,8 +97,10 @@ for LINE in IFS='
 		# Check for compression type of the file system. Default to LZMA
 		if [ "$(echo ${LINE} | grep -i 'gzip')" != "" ];  then
 			FS_COMPRESSION="gzip"
-		else
+		elif [ "$(echo ${LINE} | grep -i 'lzma')" != "" ];  then
 			FS_COMPRESSION="lzma"
+		else
+			FS_COMPRESSION="xz"
 		fi
 
 		# Check for a block size (used only by squashfs)

@@ -3,7 +3,7 @@
 #
 # jffs2-dump - JFFS2 userspace dumper tool
 #
-# Copyright ï¿½ 2009 Igor Skochinsky
+# Copyright © 2009 Igor Skochinsky
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 
 import sys, struct, os
 from zlib import decompress
+import lzma
 
 def getByte(f):
     return ord(f.read(1));
@@ -75,6 +76,23 @@ def rtime_decompress(data_in, destlen):
   #print "after decompression: len=%d (wanted: %d), outpos: %d"%(len(cpage_out), destlen, outpos)
   return cpage_out
 
+def lzma_decompress(data, outlen):
+  LZMA_BEST_LC = 0
+  LZMA_BEST_LP = 0
+  LZMA_BEST_PB = 0
+  
+  pb = LZMA_BEST_PB
+  lp = LZMA_BEST_LP
+  lc = LZMA_BEST_LC
+  PROPERTIES = (pb * 5 + lp) * 9 + lc
+  
+  DICT_SIZE = 0x2000
+  lzma_header = struct.pack('<BIQ', PROPERTIES, DICT_SIZE, outlen)
+  lzma_data = lzma_header + data
+  decompressed = lzma.decompress(lzma_data)
+  return decompressed
+
+
 JFFS2_MAGIC_BITMASK = 0x1985
 JFFS2_EMPTY_BITMASK = 0xffff
 # Compatibility flags.
@@ -100,6 +118,8 @@ JFFS2_COMPR_RUBINMIPS   = 0x03
 JFFS2_COMPR_COPY        = 0x04
 JFFS2_COMPR_DYNRUBIN    = 0x05
 JFFS2_COMPR_ZLIB        = 0x06
+JFFS2_COMPR_LZO         = 0x07
+JFFS2_COMPR_LZMA        = 0x08
 
 DT_UNKNOWN = 0
 DT_FIFO = 1
@@ -193,6 +213,10 @@ class jffs2_node:
         data = decompress(data)
       elif self.compr == JFFS2_COMPR_RTIME:
         data = rtime_decompress(data, self.dsize)
+      elif self.compr == JFFS2_COMPR_LZO:
+        raise Exception("LZO Decompression not supported now!")
+      elif self.compr == JFFS2_COMPR_LZMA:
+        data = lzma_decompress(data, self.dsize)
       else:
         raise Exception("Unknown compression %d", self.compr)
       if len(data) != self.dsize:
